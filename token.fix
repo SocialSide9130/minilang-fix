@@ -1,0 +1,19 @@
+module Token;
+
+namespace Token {
+    type Token = struct { index : U64, pos : (U64, U64), len : U64, kind : TokenKind };
+    type TokenKind = union {
+        number_literal : I64,
+        identifier : String,
+        equal : (),
+        plus : (),
+        minus : (),
+        asterisk : (),
+        slash : (),
+        open_paren : (),
+        close_paren : (),
+        comma : (),
+        double_quote : (),
+        sharp : (),
+    };
+}

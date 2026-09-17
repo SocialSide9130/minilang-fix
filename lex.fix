@@ -1,0 +1,85 @@
+module Lex;
+
+import Main::main;
+import Minilib.Monad.Reader;
+import Minilib.Monad.Trans;
+import Token;
+
+namespace Lex {
+    type LexerState = struct { index : I64, position : (I64, I64), mode : LexerMode };
+    type Lexer a = struct { run : LexerState -> (LexerState, a) };
+    type LexerM a = ReaderT (Array U8) Lexer a;
+    type LexerMode = union { normal : (), number_literal : I64, identifier : (), string_literal : (), comment : () };
+
+    impl Lexer : Monad {
+        pure = |value| Lexer { run : |state| (state, value) };
+
+        bind = |f, lexer| Lexer {
+            run : |state| (
+                let (state, value) = (lexer.@run)(state);
+
+                (f(value).@run)(state)
+            )
+        };
+    }
+
+    run_lexer_m : (Array U8) -> LexerState -> LexerM a -> (LexerState, a);
+    run_lexer_m = |code, state, lexer_m| (lexer_m.run_reader_t(code).@run)(state);
+
+    get_index : Lexer I64;
+    get_index = Lexer {
+        run : |state| (state, state.@index)
+    };
+
+    get_position : Lexer (I64, I64);
+    get_position = Lexer {
+        run : |state| (state, state.@position)
+    };
+
+    consume_byte : U8 -> Lexer ();
+    consume_byte = |c| (
+        if c == '\n' {
+            Lexer {
+                run :
+                |state| (
+                    (state.mod_index(|i| i + 1)
+                    .set_position((0, state.@position.@1 + 1)),())
+                )
+            }
+        } else if c == '\t' {
+            Lexer {
+                run :
+                |state| (
+                    (state.mod_index(|i| i + 1)
+                    .set_position((state.@position.@0 + 4, state.@position.@1)), ())
+                )
+            }
+        };
+
+        Lexer {
+            run : |state| (state.mod_index(|i| i + 1), ())
+        }
+    );
+
+    peek_current_byte : LexerM U8;
+    peek_current_byte = (
+        let code = *ask;
+        let index = *get_index.lift_t;
+        
+        pure(code.@(index))
+    );
+
+    skip_spaces : LexerM ();
+    skip_spaces = (
+        loop_m((), |_| (
+            let c = *peek_current_byte;
+
+            if c == ' ' || c == '\t' || c == '\n' {
+                let _ = *consume_byte(c).lift_t;
+                continue_m()
+            };
+
+            break_m()
+        ))
+    );
+}
