@@ -23,9 +23,20 @@ namespace Lex {
         };
     }
 
+    // Util
+    is_num : U8 -> Bool;
+    is_num = |c| '0' <= c && c <= '9';
+
+    is_alpha : U8 -> Bool;
+    is_alpha = |c| 'a' <= c && c <= 'z' || 'A' <= c && c <= 'Z' || c == '_';
+
+    is_alnum : U8 -> Bool;
+    is_alnum = |c| c.is_num || c.is_alpha;
+
     run_lexer_m : (Array U8) -> LexerState -> LexerM a -> (LexerState, a);
     run_lexer_m = |code, state, lexer_m| (lexer_m.run_reader_t(code).@run)(state);
 
+    // Lexer a
     get_index : Lexer I64;
     get_index = Lexer {
         run : |state| (state, state.@index)
@@ -61,12 +72,21 @@ namespace Lex {
         }
     );
 
+    // LexerM a
     peek_current_byte : LexerM U8;
     peek_current_byte = (
         let code = *ask;
         let index = *get_index.lift_t;
         
         pure(code.@(index))
+    );
+
+    consume_current_byte : LexerM U8;
+    consume_current_byte = (
+        let current_byte = *peek_current_byte;
+        let _ = *consume_byte(current_byte).lift_t;
+
+        pure(current_byte)
     );
 
     skip_spaces : LexerM ();
@@ -76,10 +96,132 @@ namespace Lex {
 
             if c == ' ' || c == '\t' || c == '\n' {
                 let _ = *consume_byte(c).lift_t;
+
                 continue_m()
             };
 
             break_m()
+        ))
+    );
+
+    // 本当は先頭はalpha以外許さないのでこの関数でもそう実装すべきかも
+    // でもtokenizeからしか呼ばないから許して
+    lex_identifier : LexerM Token;
+    lex_identifier = (
+        let index = *get_index.lift_t;
+        let position = *get_position.lift_t;
+        let identifier : Array U8 = 
+            *loop_m([] : Array U8, |identifier| (
+                let c = *peek_current_byte;
+
+                if c.is_alnum {
+                    let _ = *consume_byte(c).lift_t;
+                    let identifier = identifier.push_back(c);
+
+                    continue_m $ identifier
+                };
+
+                break_m $ identifier
+            ));
+        
+        pure(Token { index : index, position : position, len : identifier.@size, kind : TokenKind::identifier(identifier) })
+    );
+
+    lex_number : LexerM Token;
+    lex_number = (
+        let index = *get_index.lift_t;
+        let position = *get_position.lift_t;
+        let (number, len) = 
+            *loop_m((0, 1), |(number, len)| (
+                let c = *peek_current_byte;
+
+                if c.is_num {
+                    let _ = *consume_byte(c).lift_t;
+                    let number = number * 10 + (c - '0').i64;
+
+                    continue_m $ (number, len + 1)
+                };
+
+                break_m $ (number, len)
+            ));
+        
+        pure(Token { index : index, position : position, len : len, kind : TokenKind::number_literal(number) })
+    );
+
+    lex_eof : LexerM Token;
+    lex_eof = (
+        let index = *get_index.lift_t;
+        let position = *get_position.lift_t;
+        let _ = *consume_byte(0_U8).lift_t;
+
+        pure(Token { index : index, position : position, len : 0, kind : TokenKind::eof() })
+    );
+
+    lex_symbol : LexerM Token;
+    lex_symbol = (
+        let index = *get_index.lift_t;
+        let position = *get_position.lift_t;
+        let c = *peek_current_byte;
+        let kind = 
+            if c == '=' {
+                TokenKind::equal()
+            } else if c == '+' {
+                TokenKind::plus()
+            } else if c == '-' {
+                TokenKind::minus()
+            } else if c == '*' {
+                TokenKind::asterisk()
+            } else if c == '/' {
+                TokenKind::slash()
+            } else if c == '(' {
+                TokenKind::open_paren()
+            } else if c == ')' {
+                TokenKind::close_paren()
+            } else if c == ',' {
+                TokenKind::comma()
+            } else if c == 34_U8 {
+                // " 
+                // error: Expected u8_lit_char. という謎のエラーが出るので直接埋め込み
+                TokenKind::double_quote()
+            } else if c == '#' {
+                TokenKind::sharp()
+            } else {
+                TokenKind::invalid()
+            };
+        let _ = *consume_byte(c).lift_t;
+
+        pure(Token { index : index, position : position, len : 1, kind : kind })
+    );
+
+    tokenize : LexerM (Array Token);
+    tokenize = (
+        let tokens : Array Token = [];
+
+        loop_m(tokens, |tokens| (
+            let _ = *skip_spaces;
+            let c = *peek_current_byte;
+
+            if c.is_alpha {
+                let token = *lex_identifier;
+                let tokens = tokens.push_back(token);
+
+                continue_m $ tokens
+            } else if c.is_num {
+                let token = *lex_number;
+                let tokens = tokens.push_back(token);
+
+                continue_m $ tokens
+            } else if c == 0_U8 {
+                let token = *lex_eof;
+                let tokens = tokens.push_back(token);
+
+                break_m $ tokens
+            } else {
+                let token = *lex_symbol;
+                let tokens = tokens.push_back(token);
+
+                continue_m $ tokens
+            }
         ))
     );
 }

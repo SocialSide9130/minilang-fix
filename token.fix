@@ -1,10 +1,10 @@
 module Token;
 
 namespace Token {
-    type Token = struct { index : I64, pos : (I64, I64), len : I64, kind : TokenKind };
+    type Token = struct { index : I64, position : (I64, I64), len : I64, kind : TokenKind };
     type TokenKind = union {
         number_literal : I64,
-        identifier : String,
+        identifier : Array U8,
         equal : (),
         plus : (),
         minus : (),
@@ -15,5 +15,7 @@ namespace Token {
         comma : (),
         double_quote : (),
         sharp : (),
+        invalid : (),
+        eof : (),
     };
 }

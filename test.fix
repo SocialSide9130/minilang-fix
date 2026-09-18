@@ -1,7 +1,45 @@
 module Test;
 
+import Lex;
+import Token;
+import Minilib.Monad.Reader;
+
+namespace Test {
+    run_tokenize : Array U8 -> Array Token::Token;
+    run_tokenize = |code| (
+        let initial_state = Lex::LexerState {
+            index : 0,
+            position : (1, 1),
+            mode : LexerMode::normal(),
+        };
+
+        let lexer = Lex::tokenize.run_reader_t(code);
+        let (_, tokens) = (lexer.@run)(initial_state);
+
+        tokens
+    );
+}
+
 test : IO ();
 test = (
-    assert_eq(|_|"case 1", 42, 6*7);;
+    let code : Array U8 = [
+        'f', 'o', 'o',
+        ' ',
+        '+',
+        ' ',
+        '1', '2', '3',
+        0_U8
+    ];
+
+    let tokens = Test::run_tokenize(code);
+
+    assert_eq(|_| "", tokens.@size, 4);;
+
+    assert_eq(|_| "", tokens.@(0).@kind.is_identifier, true);;
+    assert_eq(|_| "", tokens.@(1).@kind.is_plus, true);;
+    assert_eq(|_| "", tokens.@(2).@kind.is_number_literal, true);;
+    assert_eq(|_| "", tokens.@(2).@kind.as_number_literal, 123);;
+    assert_eq(|_| "", tokens.@(3).@kind.is_eof, true);;
+
     pure()
 );
