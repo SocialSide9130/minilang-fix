@@ -173,6 +173,8 @@ namespace Lex {
                 TokenKind::asterisk()
             } else if c == '/' {
                 TokenKind::slash()
+            } else if c == '%' {
+                TokenKind::percent()
             } else if c == '(' {
                 TokenKind::open_paren()
             } else if c == ')' {
