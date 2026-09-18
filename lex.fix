@@ -181,7 +181,7 @@ namespace Lex {
                 TokenKind::comma()
             } else if c == 34_U8 {
                 // " 
-                // error: Expected u8_lit_char. という謎のエラーが出るので直接埋め込み
+                // PR #578で修正済みらしい
                 TokenKind::double_quote()
             } else if c == '#' {
                 TokenKind::sharp()
