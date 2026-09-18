@@ -1,7 +1,7 @@
 module Token;
 
 namespace Token {
-    type Token = struct { index : U64, pos : (U64, U64), len : U64, kind : TokenKind };
+    type Token = struct { index : I64, pos : (I64, I64), len : I64, kind : TokenKind };
     type TokenKind = union {
         number_literal : I64,
         identifier : String,
