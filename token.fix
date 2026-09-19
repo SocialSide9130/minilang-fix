@@ -2,6 +2,7 @@ module Token;
 
 namespace Token {
     type Token = struct { index : I64, position : (I64, I64), len : I64, kind : TokenKind };
+
     type TokenKind = union {
         number_literal : I64,
         identifier : Array U8,
@@ -19,4 +20,24 @@ namespace Token {
         invalid : (),
         eof : (),
     };
+
+    impl TokenKind : ToString {
+        to_string = |kind| match kind {
+            number_literal(_) => "number",
+            identifier(_) => "identifier",
+            equal(_) => "'='",
+            plus(_) => "'+'",
+            minus(_) => "'-'",
+            asterisk(_) => "'*'",
+            slash(_) => "'/'",
+            percent(_) => "'%'",
+            open_paren(_) => "'('",
+            close_paren(_) => "')'",
+            comma(_) => "','",
+            double_quote(_) => "\"",
+            sharp(_) => "'#'",
+            invalid(_) => "invalid token",
+            eof(_) => "'EOF'",
+        };
+    }
 }
