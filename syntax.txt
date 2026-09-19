@@ -1,0 +1,6 @@
+program = expr ;
+expr = assign ;
+assign = identifier "=" add ;
+add = mul { "+" | "-" mul } ;
+mul = elem { "*" | "/" elem } ;
+elem = number | "(" expr ")" | variable ;
