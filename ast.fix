@@ -1,0 +1,40 @@
+module Ast;
+
+import Main::main;
+
+namespace Ast {
+    type Ast = box union {
+        number : (I64),
+        binary_operation : (BinaryOperation),
+        unary_operation : (UnaryOperation),
+        // function_call : (FunctionCall),
+        // variable : (Variable),
+    };
+
+    // Operator
+    type BinaryOperator = union {
+        add : (),
+        sub : (),
+        mul : (),
+        div : (),
+        mod : (),
+        assign : (),
+    };
+
+    type UnaryOperator = union {
+        plus : (),
+        minus : (),
+    };
+
+    // Operation
+    type BinaryOperation = struct {
+        operator : BinaryOperator,
+        lhs : Ast,
+        rhs : Ast
+    };
+
+    type UnaryOperation = struct {
+        operator : UnaryOperator,
+        operand : Ast,
+    };
+}

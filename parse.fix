@@ -1,0 +1,280 @@
+module Parse;
+
+import Ast;
+import Main::main;
+import Minilib.Monad.Error;
+import Minilib.Monad.Reader;
+import Minilib.Monad.Result;
+import Minilib.Monad.Trans;
+import Token;
+
+namespace Parse {
+    type ParserState = struct { index : I64 };
+    type Parser a = struct { run : ParserState -> (ParserState, a) };
+    type ParserBase a = ReaderT (Array Token) Parser a;
+    type ParserM a = ResultT ErrMsg (ReaderT (Array Token) Parser) a;
+
+    impl Parser : Monad {
+        pure = |value| Parser { run : |state| (state, value) };
+
+        bind = |f, parser| Parser {
+            run : |state| (
+                let (state, value) = (parser.@run)(state);
+
+                (f(value).@run)(state)
+            )
+        };
+    }
+
+    // Util
+    build_binop : BinaryOperator -> Ast -> Ast -> BinaryOperation;
+    build_binop = |operator, lhs, rhs| BinaryOperation {
+        operator : operator, lhs : lhs, rhs : rhs
+    };
+
+    build_binop_ast : BinaryOperator -> Ast -> Ast -> Ast;
+    build_binop_ast = |operator, lhs, rhs| binary_operation(build_binop(operator, lhs, rhs));
+
+    same_kind : TokenKind -> TokenKind -> Bool;
+    same_kind = |lhs, rhs| (
+        match lhs {
+            TokenKind::number_literal(_) => rhs.is_number_literal,
+            TokenKind::identifier(_) => rhs.is_identifier,
+            TokenKind::equal() => rhs.is_equal,
+            TokenKind::plus() => rhs.is_plus,
+            TokenKind::minus() => rhs.is_minus,
+            TokenKind::asterisk() => rhs.is_asterisk,
+            TokenKind::slash() => rhs.is_slash,
+            TokenKind::percent() => rhs.is_percent,
+            TokenKind::open_paren() => rhs.is_open_paren,
+            TokenKind::close_paren() => rhs.is_close_paren,
+            TokenKind::comma() => rhs.is_comma,
+            TokenKind::double_quote() => rhs.is_double_quote,
+            TokenKind::sharp() => rhs.is_sharp,
+            TokenKind::invalid() => rhs.is_invalid,
+            TokenKind::eof() => rhs.is_eof,
+        }
+    );
+
+    number_zero : Ast;
+    number_zero = Ast::number(0);
+
+    create_error_message : Token -> String -> ErrMsg;
+    create_error_message = |token, message| (
+        let (x, y) = token.@position;
+
+        (y+1).to_string + ":" + (x+1).to_string
+        + message
+    );
+
+    // Parser a
+    get_index : Parser I64;
+    get_index = Parser {
+        run : |state| (state, state.@index)
+    };
+
+    consume_token : Parser ();
+    consume_token = Parser {
+        run: |state| (state.mod_index(|i| i + 1), ())
+    };
+
+    // ParserM a
+    get_index_m : ParserM I64;
+    get_index_m = get_index.lift_t.lift_t;
+
+    number_zero_m : ParserM Ast;
+    number_zero_m = pure(number_zero);
+
+    parse_error : ErrMsg -> ParserM a;
+    parse_error = |message| (
+        let token = *peek_current_token;
+
+        error(create_error_message(token, message))
+    );
+
+
+    peek_current_token : ParserM Token;
+    peek_current_token = (
+        let tokens = *ask.lift_t;
+        let index = *get_index_m;
+
+        pure(tokens.@(index))
+    );
+
+    consume_current_token : ParserM Token;
+    consume_current_token = (
+        let token = *peek_current_token;
+        let _ = *consume_token.lift_t.lift_t;
+
+        pure(token)
+    );
+
+    expect : TokenKind -> ParserM Token;
+    expect = |kind| (
+        let token = *peek_current_token;
+        let (x, y) = token.@position;
+
+        if kind.same_kind(token.@kind) {
+            pure(token)
+        };
+
+        parse_error(
+            "expected " + kind.to_string + ", but got " + token.@kind.to_string + "."
+        )
+    );
+
+    number : ParserM Ast;
+    number = (
+        let token = *consume_current_token;
+        
+        match token.@kind {
+            TokenKind::number_literal(n) => pure(Ast::number(n)),
+            _ => parse_error(
+                "expected number, but got" + token.@kind.to_string + "."
+            )
+        }
+    );
+
+    primary : ParserM Ast;
+    primary = (
+        let token = *peek_current_token;
+
+        match token.@kind {
+            TokenKind::number_literal(_) => number,
+            TokenKind::open_paren() => (
+                let _ = *consume_current_token;
+                let e = *expr;
+                let _ = *expect(TokenKind::close_paren());
+
+                pure(e)
+            ),
+            // variable | functioncall
+            // TokenKind::identifier() => (
+            //     let ident = *consume_current_token;
+            //     let 
+            // )
+            _ => parse_error(
+                "expected expression, but got "
+                + token.@kind.to_string + "."
+            )
+        } 
+    );
+
+    unary : ParserM Ast;
+    unary = (
+        let token = *peek_current_token;
+
+        match token.@kind {
+            TokenKind::plus() => (
+                let _ = *consume_current_token;
+                
+                primary
+            ),
+            TokenKind::minus() => (
+                let _ = *consume_current_token;
+                let rhs = *primary;
+
+                pure $
+                    build_binop_ast(BinaryOperator::sub(), number_zero, rhs)
+            ),
+            _ => primary
+        }
+    );
+
+    mul : ParserM Ast;
+    mul = (
+        let lhs = *unary;
+
+        let lhs = *loop_m(lhs, |lhs| (
+            let token = *peek_current_token;
+
+            let lhs_opt = *match token.@kind {
+                TokenKind::asterisk() => (
+                    let _ = *consume_current_token;
+                    let rhs = *unary;
+                    let new_lhs = build_binop_ast(BinaryOperator::mul(), lhs, rhs);
+
+                    pure(Option::some(new_lhs))
+                ),
+                TokenKind::slash() => (
+                    let _ = *consume_current_token;
+                    let rhs = *unary;
+                    let new_lhs = build_binop_ast(BinaryOperator::div(), lhs, rhs);
+
+                    pure(Option::some(new_lhs))
+                ),
+                TokenKind::percent() => (
+                    let _ = *consume_current_token;
+                    let rhs = *unary;
+                    let new_lhs = build_binop_ast(BinaryOperator::mod(), lhs, rhs);
+
+                    pure(Option::some(new_lhs))
+                ),
+                _ => pure(Option::none())
+            };
+
+            if lhs_opt.is_none {
+                break_m $ lhs
+            };
+
+            continue_m $ lhs_opt.as_some
+        ));
+
+        pure(lhs)
+    );
+
+    add : ParserM Ast;
+    add = (
+        let lhs : Ast = *Parse::mul;
+
+        let lhs = *loop_m(lhs, |lhs| (
+            let token = *peek_current_token;
+
+            let lhs_opt = *match token.@kind {
+                TokenKind::plus() => (
+                    let _ = *consume_current_token;
+                    let rhs = *Parse::mul;
+                    let new_lhs = build_binop_ast(BinaryOperator::add(), lhs, rhs);
+
+                    pure(Option::some(new_lhs))
+                ),
+                TokenKind::minus() => (
+                    let _ = *consume_current_token;
+                    let rhs = *Parse::mul;
+                    let new_lhs = build_binop_ast(BinaryOperator::sub(), lhs, rhs);
+
+                    pure(Option::some(new_lhs))
+                ),
+                _ => pure(Option::none())
+            };
+
+            if lhs_opt.is_none {
+                break_m $ lhs
+            };
+
+            continue_m $ lhs_opt.as_some
+        ));
+
+        pure(lhs)
+    );
+
+    // assign : ParserM Ast;
+    // assign = (
+    //     let lhs = *expect(TokenKind::identifier([] : Array U8)).consume_token;
+    //     let rhs = *Parse::add;
+    //     let binop = build_binop_ast(BinaryOperator::assign(), lhs, rhs);
+
+    //     pure(binop)
+    // );
+
+    expr : ParserM Ast;
+    expr = (
+        Parse::add
+    );
+
+    // parse : ParserM (Array Ast);
+    parse : ParserM Ast;
+    parse = (
+        Parse::expr
+    );
+}

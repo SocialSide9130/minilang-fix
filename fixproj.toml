@@ -20,7 +20,7 @@ license = "MIT"
 [build]
 ## Fix source files to be compiled.
 ## Merged with files specified in the command line argument.
-files = ["main.fix", "lex.fix", "token.fix"]
+files = ["main.fix", "lex.fix", "token.fix", "parse.fix", "ast.fix"]
 
 ## Object files to be linked.
 ## Merged with object files specified in the command line argument.
@@ -141,3 +141,8 @@ files = ["test.fix"]
 name = "minilib-monad"
 version = "0.12.0"
 git = { url = "https://github.com/pt9999/fixlang-minilib-monad.git" }
+
+[[dependencies]]
+name = "minilib-common"
+version = "0.14.0"
+git = { url = "https://github.com/pt9999/fixlang-minilib-common.git" }

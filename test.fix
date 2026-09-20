@@ -2,7 +2,10 @@ module Test;
 
 import Lex;
 import Token;
+import Parse;
+import Ast;
 import Minilib.Monad.Reader;
+import Minilib.Monad.Result;
 
 namespace Test {
     run_tokenize : Array U8 -> Array Token::Token;
@@ -17,6 +20,24 @@ namespace Test {
         let (_, tokens) = (lexer.@run)(initial_state);
 
         tokens
+    );
+
+    run_expr : Array Token::Token -> Result ErrMsg Ast::Ast;
+    run_expr = |tokens| (
+        let initial_state = Parse::ParserState {
+            index : 0,
+        };
+
+        let parser_base = Parse::expr.run_result_t;
+        let parser = parser_base.run_reader_t(tokens);
+        let (_, result) = (parser.@run)(initial_state);
+
+        result
+    );
+
+    tokenize_and_parse : Array U8 -> Result ErrMsg Ast::Ast;
+    tokenize_and_parse = |code| (
+        run_expr(run_tokenize(code))
     );
 }
 
@@ -40,6 +61,43 @@ test = (
     assert_eq(|_| "", tokens.@(2).@kind.is_number_literal, true);;
     assert_eq(|_| "", tokens.@(2).@kind.as_number_literal, 123);;
     assert_eq(|_| "", tokens.@(3).@kind.is_eof, true);;
+
+    let result = Test::tokenize_and_parse([
+        '1',
+        '+',
+        '2',
+        '*',
+        '3',
+        0_U8
+    ]);
+
+    assert_eq(|_| "", result.is_ok, true);;
+
+    let ast = result.as_ok;
+
+    // root: 1 + (2 * 3)
+    assert_eq(|_| "", ast.is_binary_operation, true);;
+
+    let add_op = ast.as_binary_operation;
+
+    assert_eq(|_| "", add_op.@operator.is_add, true);;
+
+    // lhs = 1
+    assert_eq(|_| "", add_op.@lhs.is_number, true);;
+    assert_eq(|_| "", add_op.@lhs.as_number, 1);;
+
+    // rhs = 2 * 3
+    assert_eq(|_| "", add_op.@rhs.is_binary_operation, true);;
+
+    let mul_op = add_op.@rhs.as_binary_operation;
+
+    assert_eq(|_| "", mul_op.@operator.is_mul, true);;
+
+    assert_eq(|_| "", mul_op.@lhs.is_number, true);;
+    assert_eq(|_| "", mul_op.@lhs.as_number, 2);;
+
+    assert_eq(|_| "", mul_op.@rhs.is_number, true);;
+    assert_eq(|_| "", mul_op.@rhs.as_number, 3);;
 
     pure()
 );
