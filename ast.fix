@@ -8,7 +8,7 @@ namespace Ast {
         binary_operation : (BinaryOperation),
         unary_operation : (UnaryOperation),
         // function_call : (FunctionCall),
-        // variable : (Variable),
+        variable : (Variable),
     };
 
     // Operator
@@ -36,5 +36,18 @@ namespace Ast {
     type UnaryOperation = struct {
         operator : UnaryOperator,
         operand : Ast,
+    };
+
+    type Variable = struct {
+        name : Array U8,
+        value : I64,
+        index : U64,
+        // scope : Scope, ?
+    };
+
+    type VariableValue = union {
+        integer : (I64),
+        string : (String),
+        bool : (Bool),
     };
 }
