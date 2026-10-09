@@ -19,6 +19,12 @@ namespace Ast {
         div : (),
         mod : (),
         assign : (),
+        less : (),
+        less_or_equal : (),
+        greater : (),
+        greater_or_equal : (),
+        equal : (),
+        not_equal : (),
     };
 
     type UnaryOperator = union {

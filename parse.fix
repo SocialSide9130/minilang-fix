@@ -46,6 +46,12 @@ namespace Parse {
             TokenKind::asterisk() => rhs.is_asterisk,
             TokenKind::slash() => rhs.is_slash,
             TokenKind::percent() => rhs.is_percent,
+            TokenKind::less() => rhs.is_less,
+            TokenKind::less_or_equal() => rhs.is_less_or_equal,
+            TokenKind::greater() => rhs.is_greater,
+            TokenKind::greater_or_equal() => rhs.is_greater_or_equal,
+            TokenKind::double_equal() => rhs.is_double_equal,
+            TokenKind::exclamation_equal() => rhs.is_exclamation_equal,
             TokenKind::open_paren() => rhs.is_open_paren,
             TokenKind::close_paren() => rhs.is_close_paren,
             TokenKind::comma() => rhs.is_comma,
@@ -242,6 +248,69 @@ namespace Parse {
                     let _ = *consume_current_token;
                     let rhs = *Parse::mul;
                     let new_lhs = build_binop_ast(BinaryOperator::sub(), lhs, rhs);
+
+                    pure(Option::some(new_lhs))
+                ),
+                _ => pure(Option::none())
+            };
+
+            if lhs_opt.is_none {
+                break_m $ lhs
+            };
+
+            continue_m $ lhs_opt.as_some
+        ));
+
+        pure(lhs)
+    );
+
+    relational : ParserM Ast;
+    relational = (
+        let lhs : Ast = *Parse::add;
+
+        let lhs = *loop_m(lhs, |lhs| (
+            let token = *peek_current_token;
+
+            let lhs_opt = *match token.@kind {
+                TokenKind::less() => (
+                    let _ = *consume_current_token;
+                    let rhs = *Parse::add;
+                    let new_lhs = build_binop_ast(BinaryOperator::less(), lhs, rhs);
+
+                    pure(Option::some(new_lhs))
+                ),
+                TokenKind::less_or_equal() => (
+                    let _ = *consume_current_token;
+                    let rhs = *Parse::add;
+                    let new_lhs = build_binop_ast(BinaryOperator::less_or_equal(), lhs, rhs);
+
+                    pure(Option::some(new_lhs))
+                ),
+                TokenKind::greater() => (
+                    let _ = *consume_current_token;
+                    let rhs = *Parse::add;
+                    let new_lhs = build_binop_ast(BinaryOperator::greater(), lhs, rhs);
+
+                    pure(Option::some(new_lhs))
+                ),
+                TokenKind::greater_or_equal() => (
+                    let _ = *consume_current_token;
+                    let rhs = *Parse::add;
+                    let new_lhs = build_binop_ast(BinaryOperator::greater_or_equal(), lhs, rhs);
+
+                    pure(Option::some(new_lhs))
+                ),
+                TokenKind::double_equal() => (
+                    let _ = *consume_current_token;
+                    let rhs = *Parse::add;
+                    let new_lhs = build_binop_ast(BinaryOperator::equal(), lhs, rhs);
+
+                    pure(Option::some(new_lhs))
+                ),
+                TokenKind::exclamation_equal() => (
+                    let _ = *consume_current_token;
+                    let rhs = *Parse::add;
+                    let new_lhs = build_binop_ast(BinaryOperator::not_equal(), lhs, rhs);
 
                     pure(Option::some(new_lhs))
                 ),

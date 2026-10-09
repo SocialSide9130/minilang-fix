@@ -1,6 +1,7 @@
 program = expr ;
 expr = assign ;
 assign = identifier "=" add ;
+relational = add { "<" | ">" | "<=" | ">=" | "==" | "!=" add } ;
 add = mul { "+" | "-" mul } ;
 mul = unary { "*" | "/" | "%" unary } ;
 unary = [ "+" | "-" ] primary ;
